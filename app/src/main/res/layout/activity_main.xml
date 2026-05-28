@@ -164,7 +164,7 @@
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_above="@id/btnFireSale"
+        android:layout_above="@id/multiActionButtonContainer"
         android:layout_below="@id/tvLogTitle"
         android:layout_marginHorizontal="20dp"
         android:layout_marginTop="6dp"
@@ -184,18 +184,42 @@
             android:textIsSelectable="true"/>
     </ScrollView>
 
-    <Button
-        android:id="@+id/btnFireSale"
+    <LinearLayout
+        android:id="@+id/multiActionButtonContainer"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:layout_marginHorizontal="20dp"
         android:layout_marginBottom="20dp"
-        android:text="EXECUTE"
-        android:backgroundTint="#007ACC"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:letterSpacing="0.02"
-        android:elevation="4dp"/>
+        android:orientation="horizontal"
+        android:weightSum="2">
+
+        <Button
+            android:id="@+id/btnFireSale"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:text="SALE"
+            android:backgroundTint="#007ACC"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.02"
+            android:elevation="4dp"/>
+
+        <Button
+            android:id="@+id/btnSettlement"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:text="SETTLE BATCH"
+            android:backgroundTint="#8E24AA"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.02"
+            android:elevation="4dp"/>
+    </LinearLayout>
 </RelativeLayout>

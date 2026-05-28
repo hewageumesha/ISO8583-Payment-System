@@ -1,7 +1,6 @@
 package com.example.payment_app;
 
 import static com.example.payment_app.ISOUtils.addTPDUAndLength;
-import static com.example.payment_app.ISOUtils.bytesToHex;
 
 import android.util.Log;
 import org.jpos.iso.ISOMsg;
@@ -36,42 +35,45 @@ public class SwitchServer extends Thread {
                 req.setPackager(packager);
                 req.unpack(isoPayload);
 
-                // Initialize the response layout structure clone
                 ISOMsg resp = (ISOMsg) req.clone();
-                resp.setMTI("0210"); // Turn the Financial Request into a Response Frame
+                String mti = req.getMTI();
+                String responseCode = "00"; // Default Approved
 
-                // This was injecting an unexpected field into the byte layout, causing the shift!
+                if ("0200".equals(mti)) {
+                    // --- FINANCIAL REQUEST PROCESSOR ---
+                    resp.setMTI("0210");
+                    String pan = req.getString(2);
+                    String amount = req.getString(4);
+                    String expiry = req.getString(14);
+                    String privateDataCvv = req.getString(48);
 
-                // --- BANKING HOST RULE ENGINE ---
-                String responseCode = "00"; // Default to Approved
+                    if (!pan.startsWith("4") && !pan.startsWith("5")) {
+                        responseCode = "05";
+                    } else if (isCardExpired(expiry)) {
+                        responseCode = "14";
+                    } else if (amount != null && amount.endsWith("99")) {
+                        responseCode = "51";
+                    } else if (privateDataCvv != null && privateDataCvv.contains("CVV=999")) {
+                        responseCode = "05";
+                    }
 
-                String pan = req.getString(2);
-                String amount = req.getString(4);
-                String expiry = req.getString(14);
-                String privateDataCvv = req.getString(48);
+                    resp.set(37, "123456789012");
+                    resp.set(38, "AUTH12");
 
-                // 1. Host Card Routing System Check
-                if (!pan.startsWith("4") && !pan.startsWith("5")) {
-                    responseCode = "05"; // Decline
+                } else if ("0500".equals(mti)) {
+                    // --- RECONCILIATION INITIALIZER PROCESSOR ---
+                    resp.setMTI("0510");
+                    Log.d("SWITCH_ENGINE", "Settlement Init Intercepted! Metadata Breakdown: " + req.getString(48));
+                    responseCode = "00";
+
+                } else if ("0320".equals(mti)) {
+                    // --- DETAILED BATCH RECORD UPLOAD PROCESSOR ---
+                    resp.setMTI("0330");
+                    Log.d("SWITCH_ENGINE", "Stored Upload Detail Entry -> PAN: " + req.getString(2) + " | AMT: " + req.getString(4));
+                    responseCode = "00";
                 }
-                // 2. Host Expiry Check
-                else if (isCardExpired(expiry)) {
-                    responseCode = "14"; // Decline: Expired Card status
-                }
-                // 3. Mock Insufficient Funds Rule (Triggered if amount ends in 99)
-                else if (amount != null && amount.endsWith("99")) {
-                    responseCode = "51"; // Decline: Insufficient Funds
-                }
-                // 4. Mock CVV Validation Check (Triggered if user entered 999)
-                else if (privateDataCvv != null && privateDataCvv.contains("CVV=999")) {
-                    responseCode = "05"; // Decline
-                }
 
-                // Inject response parameters back cleanly into the identical cloned template structure
                 resp.set(39, responseCode);
-                resp.set(37, "123456789012");
-                resp.set(38, "AUTH12");
-
                 byte[] packedResponse = resp.pack();
                 byte[] framedResponseBytes = addTPDUAndLength(packedResponse);
 
@@ -84,9 +86,6 @@ public class SwitchServer extends Thread {
         }
     }
 
-    /**
-     * Checks if the YYMM expiry string is chronologically in the past.
-     */
     private boolean isCardExpired(String expiryYYMM) {
         if (expiryYYMM == null || expiryYYMM.length() != 4) return true;
         try {
