@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0F111A"
+    tools:context=".MainActivity">
+
+    <LinearLayout
+        android:id="@+id/bannerHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#161925"
+        android:paddingVertical="18dp"
+        android:paddingHorizontal="20dp"
+        android:elevation="4dp">
+
+        <TextView
+            android:id="@+id/tvAppName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Payment - App"
+            android:textSize="22sp"
+            android:textColor="#00E5FF"
+            android:textStyle="bold"
+            android:letterSpacing="0.05"
+            android:layout_gravity="center_horizontal"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/inputContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/bannerHeader"
+        android:orientation="vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="CARD NUMBER (PAN)"
+            android:textColor="#A0AABF"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp"/>
+        <EditText
+            android:id="@+id/etCardNo"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:hint="536561234573100229"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#4E5668"
+            android:background="@android:color/transparent"
+            android:inputType="number"
+            android:maxLength="19"
+            android:textSize="15sp"
+            android:paddingHorizontal="4dp"
+            android:layout_marginBottom="14dp"
+            android:drawableStart="@android:drawable/ic_dialog_info"
+            android:drawablePadding="10dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="TRANSACTION AMOUNT"
+            android:textColor="#A0AABF"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp"/>
+        <EditText
+            android:id="@+id/etAmount"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:hint="000000001000"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#4E5668"
+            android:background="@android:color/transparent"
+            android:inputType="number"
+            android:textSize="15sp"
+            android:paddingHorizontal="4dp"
+            android:layout_marginBottom="14dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:weightSum="2">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginEnd="10dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="EXPIRY DATE"
+                    android:textColor="#A0AABF"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="4dp"/>
+                <EditText
+                    android:id="@+id/etExpiry"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:hint="2812"
+                    android:textColor="#FFFFFF"
+                    android:textColorHint="#4E5668"
+                    android:background="@android:color/transparent"
+                    android:inputType="number"
+                    android:maxLength="4"
+                    android:textSize="15sp"
+                    android:paddingHorizontal="4dp"/>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginStart="10dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SECURITY CODE (CVV)"
+                    android:textColor="#A0AABF"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="4dp"/>
+                <EditText
+                    android:id="@+id/etCVV"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:hint="123"
+                    android:textColor="#FFFFFF"
+                    android:textColorHint="#4E5668"
+                    android:background="@android:color/transparent"
+                    android:inputType="numberPassword"
+                    android:maxLength="3"
+                    android:textSize="15sp"
+                    android:paddingHorizontal="4dp"/>
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvLogTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/inputContainer"
+        android:text="LIVE SYSTEM NETWORK CONSOLE MTI LOGS:"
+        android:textColor="#00E5FF"
+        android:textSize="10sp"
+        android:textStyle="bold"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="16dp"
+        android:letterSpacing="0.05"/>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@id/btnFireSale"
+        android:layout_below="@id/tvLogTitle"
+        android:layout_marginHorizontal="20dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="20dp"
+        android:background="#161925"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/tvSystemLog"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="System Initializing...\nSwitch Engine online, bound internally to local address port 5000."
+            android:fontFamily="monospace"
+            android:textSize="12sp"
+            android:textColor="#A0FFB4"
+            android:lineSpacingMultiplier="1.2"
+            android:textIsSelectable="true"/>
+    </ScrollView>
+
+    <Button
+        android:id="@+id/btnFireSale"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_alignParentBottom="true"
+        android:layout_marginHorizontal="20dp"
+        android:layout_marginBottom="20dp"
+        android:text="EXECUTE"
+        android:backgroundTint="#007ACC"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.02"
+        android:elevation="4dp"/>
+</RelativeLayout>
