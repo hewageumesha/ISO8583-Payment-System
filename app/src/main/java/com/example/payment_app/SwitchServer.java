@@ -42,19 +42,42 @@ public class SwitchServer extends Thread {
                 if ("0200".equals(mti)) {
                     // --- FINANCIAL REQUEST PROCESSOR ---
                     resp.setMTI("0210");
-                    String pan = req.getString(2);
-                    String amount = req.getString(4);
-                    String expiry = req.getString(14);
-                    String privateDataCvv = req.getString(48);
 
-                    if (!pan.startsWith("4") && !pan.startsWith("5")) {
-                        responseCode = "05";
-                    } else if (isCardExpired(expiry)) {
-                        responseCode = "14";
-                    } else if (amount != null && amount.endsWith("99")) {
-                        responseCode = "51";
-                    } else if (privateDataCvv != null && privateDataCvv.contains("CVV=999")) {
-                        responseCode = "05";
+                    String procCode = req.getString(3);
+                    String pan = req.getString(2);
+                    String expiry = req.getString(14);
+
+                    if (procCode != null && procCode.startsWith("02")) {
+                        // =========================================================
+                        //⚡ VOID TRANSACTION ENGINE LOGIC
+                        // =========================================================
+                        String targetInvoice = req.getString(62);
+                        Log.d("SWITCH_ENGINE", "⚡ Intercepted VOID Request for Invoice No: " + targetInvoice);
+
+                        if (pan == null || (!pan.startsWith("4") && !pan.startsWith("5"))) {
+                            responseCode = "05"; // Do Not Honor
+                        } else if (isCardExpired(expiry)) {
+                            responseCode = "14"; // Invalid Card (Expired)
+                        } else {
+                            responseCode = "00"; // Void Approved!
+                        }
+
+                    } else {
+                        // =========================================================
+                        // 🛒 STANDARD SALE TRANSACTION LOGIC
+                        // =========================================================
+                        String amount = req.getString(4);
+                        String privateDataCvv = req.getString(48);
+
+                        if (!pan.startsWith("4") && !pan.startsWith("5")) {
+                            responseCode = "05";
+                        } else if (isCardExpired(expiry)) {
+                            responseCode = "14";
+                        } else if (amount != null && amount.endsWith("99")) {
+                            responseCode = "51";
+                        } else if (privateDataCvv != null && privateDataCvv.contains("CVV=999")) {
+                            responseCode = "05";
+                        }
                     }
 
                     resp.set(37, "123456789012");
