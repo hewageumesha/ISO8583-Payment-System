@@ -14,24 +14,27 @@ public class MainActivity extends AppCompatActivity implements PosTerminal.Termi
 
     private SwitchServer switchServer;
     private TextView tvSystemLog;
-    private Button btnFireSale, btnSettlement;
-    private EditText etCardNo, etAmount, etExpiry, etCVV;
+    private Button btnFireSale, btnSettlement, btnVoidSale;
+    private EditText etCardNo, etAmount, etExpiry, etCVV, etInvoiceNo;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // UI Components Binding
         tvSystemLog = findViewById(R.id.tvSystemLog);
         btnFireSale = findViewById(R.id.btnFireSale);
         btnSettlement = findViewById(R.id.btnSettlement);
+        btnVoidSale = findViewById(R.id.btnVoidSale);
 
         etCardNo = findViewById(R.id.etCardNo);
         etAmount = findViewById(R.id.etAmount);
         etExpiry = findViewById(R.id.etExpiry);
         etCVV = findViewById(R.id.etCVV);
+        etInvoiceNo = findViewById(R.id.etInvoiceNo);
 
-        // FIX: Running SwitchServer inside a background thread to prevent UI freezing/crashing
+        // Running SwitchServer inside a background thread to prevent UI freezing/crashing
         switchServer = new SwitchServer();
         new Thread(() -> {
             try {
@@ -45,6 +48,9 @@ public class MainActivity extends AppCompatActivity implements PosTerminal.Termi
                 "Internal Switch Socket bound on Port 5000.\n" +
                 "Awaiting ISO 8583 validation entry parameters...");
 
+        // =========================================================
+        //                    1. STANDARD SALE BUTTON
+        // =========================================================
         btnFireSale.setOnClickListener(v -> {
             String card = etCardNo.getText().toString().trim();
             String amt = etAmount.getText().toString().trim();
@@ -52,42 +58,77 @@ public class MainActivity extends AppCompatActivity implements PosTerminal.Termi
             String cvvCode = etCVV.getText().toString().trim();
 
             if (card.isEmpty() || amt.isEmpty() || exp.isEmpty() || cvvCode.isEmpty()) {
-                showValidationError("All fields are required!");
+                showValidationError("All fields are required for Sale!");
                 return;
             }
 
             if (!card.matches("^\\d{16}$")) {
-                showValidationError("Invalid Card Number! Must be exactly 16 numeric digits.");
+                showValidationError("Invalid Card Number! Must be exactly 16 digits.");
                 return;
             }
 
             if (!cvvCode.matches("^\\d{3}$")) {
-                showValidationError("Invalid CVV! Security code must be exactly 3 digits.");
+                showValidationError("Invalid CVV! Security code must be 3 digits.");
                 return;
             }
 
             if (!amt.matches("^\\d+$") || Long.parseLong(amt) <= 0) {
-                showValidationError("Invalid Amount! Must be a positive number greater than 0.");
+                showValidationError("Invalid Amount! Must be a positive number.");
                 return;
             }
 
             if (!exp.matches("^\\d{4}$")) {
-                showValidationError("Invalid Expiry Format! Use YYMM (e.g., 2812).");
-                return;
-            }
-
-            int month = Integer.parseInt(exp.substring(2, 4));
-            if (month < 1 || month > 12) {
-                showValidationError("Invalid Expiry Month! MM must be between 01 and 12.");
+                showValidationError("Invalid Expiry! Use YYMM (e.g., 2812).");
                 return;
             }
 
             tvSystemLog.setText("CLIENT VALIDATION PASSED:\nBuilding MTI 0200 Payload frame data streams...");
+            // Standard Sale Request (6 Parameters)
             new PosTerminal(MainActivity.this, card, amt, exp, cvvCode, MainActivity.this).start();
         });
 
+        // =========================================================
+        //                    2. VOID TRANSACTION BUTTON
+        // =========================================================
+        btnVoidSale.setOnClickListener(v -> {
+            String card = etCardNo.getText().toString().trim();
+            String exp = etExpiry.getText().toString().trim();
+            String cvvCode = etCVV.getText().toString().trim();
+            String invoice = etInvoiceNo.getText().toString().trim();
+
+            if (card.isEmpty() || exp.isEmpty() || cvvCode.isEmpty() || invoice.isEmpty()) {
+                showValidationError("Card details AND Invoice Number are required for Void!");
+                return;
+            }
+
+            if (!card.matches("^\\d{16}$")) {
+                showValidationError("Invalid Card Number! Must be exactly 16 digits.");
+                return;
+            }
+
+            if (!cvvCode.matches("^\\d{3}$")) {
+                showValidationError("Invalid CVV! Security code must be 3 digits.");
+                return;
+            }
+
+            if (!exp.matches("^\\d{4}$")) {
+                showValidationError("Invalid Expiry! Use YYMM (e.g., 2812).");
+                return;
+            }
+
+            tvSystemLog.setText("⚡ INITIALIZING VOID SALE TRANSACTION...\nPackaging Void frames for Invoice: " + invoice);
+
+            // FIX: මෙතනදී "VOID" කියන එකත් එක්ක පරාමිති 7ක් ගන්න අලුත් Constructor එක නිවැරදිව කෝල් කරනවා!
+            // එතකොට තමයි PosTerminal එක ඇතුලෙන් Processing Code එක '020000' වෙලා සර්වර් එකට යන්නේ.
+            new PosTerminal(MainActivity.this, card, invoice, exp, cvvCode, "VOID", MainActivity.this).start();
+        });
+
+        // =========================================================
+        //                    3. SETTLEMENT BUTTON
+        // =========================================================
         btnSettlement.setOnClickListener(v -> {
             tvSystemLog.setText("⚡ INITIALIZING BATCH RECONCILIATION SETTLEMENT...");
+            // Standard Settlement Request (2 Parameters)
             new PosTerminal(MainActivity.this, MainActivity.this).start();
         });
     }
@@ -108,7 +149,6 @@ public class MainActivity extends AppCompatActivity implements PosTerminal.Termi
                 StringBuilder sb = new StringBuilder();
                 String[] payloads = rawPayloadHex.split("\\|");
 
-                // පළමු පැකට් එක unpack කරලා ඒක 0200 ද 0500 ද කියලා MTI එක චෙක් කරනවා
                 byte[] firstRawBytes = ISOUtils.hexStringToByteArray(payloads[0]);
                 byte[] firstIsoPayload = Arrays.copyOfRange(firstRawBytes, 7, firstRawBytes.length);
                 ISO87BPackager packager = new ISO87BPackager();
@@ -118,30 +158,45 @@ public class MainActivity extends AppCompatActivity implements PosTerminal.Termi
                 String firstMti = firstMsg.getMTI();
 
                 if ("0500".equals(firstMti) && payloads.length >= 2) {
-                    // =========================================================
-                    //                    BATCH SETTLEMENT MODE
-                    // =========================================================
                     sb.append("=========================================\n");
                     sb.append("         BATCH SETTLEMENT REPORT         \n");
                     sb.append("=========================================\n");
                     sb.append("STATUS: ").append("00".equals(responseCode) ? "[APPROVED / SUCCESS]" : "[DECLINED / FAILED]").append("\n\n");
-
                     sb.append(generateIsoBreakdownMarkup("0500 REQUEST PACKET (Terminal -> Host)", payloads[0]));
                     sb.append("\n-----------------------------------------\n\n");
                     sb.append(generateIsoBreakdownMarkup("0510 RESPONSE PACKET (Host -> Terminal)", payloads[1]));
 
                 } else if ("0200".equals(firstMti) && payloads.length >= 2) {
                     // =========================================================
-                    //                    STANDARD SALE MODE (0200 & 0210)
+                    //         FINANCIAL TRANSACTION MODE (SALE / VOID)
                     // =========================================================
-                    sb.append("=========================================\n");
-                    sb.append("         FINANCIAL TRANSACTION STATUS    \n");
-                    sb.append("=========================================\n");
-                    sb.append("STATUS: ").append("00".equals(responseCode) ? "[APPROVED]" : "[DECLINED / CODE: " + responseCode + "]").append("\n\n");
+                    boolean isVoidSale = false;
+                    if (firstMsg.hasField(3)) {
+                        String procCode = firstMsg.getString(3);
+                        if (procCode != null && procCode.startsWith("02")) {
+                            isVoidSale = true;
+                        }
+                    }
 
-                    sb.append(generateIsoBreakdownMarkup("0200 REQUEST PACKET (Terminal -> Host)", payloads[0]));
-                    sb.append("\n-----------------------------------------\n\n");
-                    sb.append(generateIsoBreakdownMarkup("0210 RESPONSE PACKET (Host -> Terminal)", payloads[1]));
+                    sb.append("=========================================\n");
+                    if (isVoidSale) {
+                        sb.append("         VOID TRANSACTION STATUS         \n");
+                    } else {
+                        sb.append("         FINANCIAL TRANSACTION STATUS    \n");
+                    }
+                    sb.append("=========================================\n");
+
+                    if (isVoidSale) {
+                        sb.append("STATUS: ").append("00".equals(responseCode) ? "[VOID APPROVED]" : "[VOID DECLINED / CODE: " + responseCode + "]").append("\n\n");
+                        sb.append(generateIsoBreakdownMarkup("0200 VOID REQUEST (Terminal -> Host)", payloads[0]));
+                        sb.append("\n-----------------------------------------\n\n");
+                        sb.append(generateIsoBreakdownMarkup("0210 VOID RESPONSE (Host -> Terminal)", payloads[1]));
+                    } else {
+                        sb.append("STATUS: ").append("00".equals(responseCode) ? "[APPROVED]" : "[DECLINED / CODE: " + responseCode + "]").append("\n\n");
+                        sb.append(generateIsoBreakdownMarkup("0200 REQUEST PACKET (Terminal -> Host)", payloads[0]));
+                        sb.append("\n-----------------------------------------\n\n");
+                        sb.append(generateIsoBreakdownMarkup("0210 RESPONSE PACKET (Host -> Terminal)", payloads[1]));
+                    }
                 }
 
                 tvSystemLog.setText(sb.toString());
@@ -238,6 +293,7 @@ public class MainActivity extends AppCompatActivity implements PosTerminal.Termi
             case 48: return "Private Data / CVV";
             case 49: return "Currency Code";
             case 62: return "Invoice / Ticket Number";
+            case 90: return "Original Data Elements";
             default: return "Custom Field Attribute";
         }
     }

@@ -23,10 +23,11 @@ public class PosTerminal extends Thread {
     }
 
     private final TerminalResultListener listener;
-    private final String mode;
-    private String cardNo, amount, expiry, cvv;
+    private final String mode; // "SALE", "VOID", "SETTLEMENT"
+    private String cardNo, amount, expiry, cvv, invoiceNo;
     private final DBHelper dbHelper;
 
+    // 1. STANDARD SALE CONSTRUCTOR (Args 6)
     public PosTerminal(Context ctx, String cardNo, String amount, String expiry, String cvv, TerminalResultListener listener) {
         this.mode = "SALE";
         this.cardNo = cardNo;
@@ -37,6 +38,18 @@ public class PosTerminal extends Thread {
         this.dbHelper = new DBHelper(ctx);
     }
 
+    // 2. VOID SALE CONSTRUCTOR (Args 7)
+    public PosTerminal(Context ctx, String cardNo, String invoiceNo, String expiry, String cvv, String mode, TerminalResultListener listener) {
+        this.mode = "VOID";
+        this.cardNo = cardNo;
+        this.invoiceNo = invoiceNo;
+        this.expiry = expiry;
+        this.cvv = cvv;
+        this.listener = listener;
+        this.dbHelper = new DBHelper(ctx);
+    }
+
+    // 3. SETTLEMENT CONSTRUCTOR (Args 2)
     public PosTerminal(Context ctx, TerminalResultListener listener) {
         this.mode = "SETTLEMENT";
         this.listener = listener;
@@ -51,21 +64,28 @@ public class PosTerminal extends Thread {
             byte[] respBuffer = new byte[2048];
             int len;
 
-            if ("SALE".equals(mode)) {
-                // ================= FINANCIAL SALE PROCESSOR (0200) =================
+            if ("SALE".equals(mode) || "VOID".equals(mode)) {
+                // ================= FINANCIAL PROCESSOR (SALE / VOID) =================
                 ISOMsg isoMsg = new ISOMsg();
                 isoMsg.setPackager(packager);
 
-                long amountVal = Long.parseLong(amount);
-                String paddedAmount = String.format(Locale.US, "%012d", amountVal * 100);
                 String randomStan = String.format(Locale.US, "%06d", new Random().nextInt(999999));
+                String datetime = new SimpleDateFormat("MMddHHmmss", Locale.getDefault()).format(new Date());
 
                 isoMsg.setMTI("0200");
                 isoMsg.set(2, cardNo);
-                isoMsg.set(3, "000000");
-                isoMsg.set(4, paddedAmount);
 
-                String datetime = new SimpleDateFormat("MMddHHmmss", Locale.getDefault()).format(new Date());
+                if ("VOID".equals(mode)) {
+                    isoMsg.set(3, "020000");
+                    isoMsg.set(4, "000000000000");
+                    isoMsg.set(62, invoiceNo);
+                } else {
+                    isoMsg.set(3, "000000"); // Sale Processing Code
+                    long amountVal = Long.parseLong(amount);
+                    String paddedAmount = String.format(Locale.US, "%012d", amountVal * 100);
+                    isoMsg.set(4, paddedAmount);
+                    isoMsg.set(62, "INV001");
+                }
 
                 isoMsg.set(11, randomStan);
                 isoMsg.set(12, datetime.substring(4));
@@ -80,7 +100,6 @@ public class PosTerminal extends Thread {
                 isoMsg.set(41, "TERMID01");
                 isoMsg.set(42, "MERCHANT000001 ");
                 isoMsg.set(49, "144");
-                isoMsg.set(62, "INV001");
                 isoMsg.set(48, "CVV=" + cvv);
 
                 byte[] completeNetworkMessageFrame = addTPDUAndLength(isoMsg.pack());
@@ -102,7 +121,9 @@ public class PosTerminal extends Thread {
 
                     String actionResponseCode = response.getString(39);
 
-                    if ("00".equals(actionResponseCode)) {
+                    if ("SALE".equals(mode) && "00".equals(actionResponseCode)) {
+                        long amountVal = Long.parseLong(amount);
+                        String paddedAmount = String.format(Locale.US, "%012d", amountVal * 100);
                         dbHelper.insertTransaction(cardNo, paddedAmount, expiry, randomStan);
                     }
 
@@ -131,7 +152,6 @@ public class PosTerminal extends Thread {
 
                 if (listener != null) listener.onSettlementLog("-> Transmitting MTI 0500 (Reconciliation Request)...");
 
-                // Step A: Dispatch Reconciliation Header Handshake (MTI 0500)
                 ISOMsg reconciliationMsg = new ISOMsg();
                 reconciliationMsg.setPackager(packager);
                 reconciliationMsg.setMTI("0500");
@@ -141,7 +161,6 @@ public class PosTerminal extends Thread {
                 reconciliationMsg.set(48, String.format(Locale.US, "CNT=%03d,AMT=%012d", txList.size(), totalAmount));
 
                 byte[] reconciliationPackedBytes = addTPDUAndLength(reconciliationMsg.pack());
-                // Save 0500 Request Hex before sending
                 String saved0500HexPayload = bytesToHex(reconciliationPackedBytes, reconciliationPackedBytes.length);
 
                 socket = new Socket("127.0.0.1", 5000);
@@ -160,7 +179,6 @@ public class PosTerminal extends Thread {
                 reconResponse.unpack(isolatedIsoDataPayload);
 
                 String reconResponseCode = reconResponse.getString(39);
-                // Save 0510 Response Hex
                 String saved0510HexPayload = bytesToHex(respBuffer, len);
 
                 if (!"00".equals(reconResponseCode)) {
@@ -168,7 +186,6 @@ public class PosTerminal extends Thread {
                     return;
                 }
 
-                // Step B: Sequentially stream log entries across independent sockets (MTI 0320)
                 if (listener != null) listener.onSettlementLog("-> Reconciliation Confirmed (00).\n-> Streaming Batch Elements (MTI 0320)...");
 
                 for (int i = 0; i < txList.size(); i++) {
@@ -193,7 +210,6 @@ public class PosTerminal extends Thread {
                     }
                 }
 
-                // Step C: Flush DB & Return combined 0500 and 0510 payloads separated by '|'
                 dbHelper.clearBatch();
                 if (listener != null) {
                     listener.onTransactionComplete(reconResponseCode, saved0500HexPayload + "|" + saved0510HexPayload);
